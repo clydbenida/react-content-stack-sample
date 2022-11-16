@@ -1,70 +1,139 @@
-# Getting Started with Create React App
+# ReactJS & ContentStack Basic Implementation
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+This project provides info how you can properly integrate contentstack into bare react app without any scaffolding from other code.
 
-## Available Scripts
+# Getting entries
 
-In the project directory, you can run:
+## Old implementation
+```js
+const App = () => {
+  const [data, setData] = useState()
+  // Define axios and query
+  const api = axios.create({
+    baseURL: 'https://cdn.contentstack.io/v3/content_types/',
+    headers: {
+        api_key : process.env.REACT_APP_SA_KEY,
+        access_token : process.env.REACT_APP_SA_TOKEN
+    } 
+  });
+  const query = 'section_blocks.slider_experience.category&include[]=section_blocks.article.featured_article&include[]=section_blocks.article.category&include[]=section_blocks.experience_slider.slider_info.reference';
 
-### `npm start`
+  // Define getter in useEffect
+  useEffect(() => {
+    const apiget = async (content_type) => {
+      await api.get( `${content_type}/entries/?environment=${process.env.REACT_APP_SA_ENV}&include[]=${query}` ).then(function(response){
+        setData(response.data?.entries[0].section_blocks);
+        boot();
+      });
+    }
+    apiget('home_page_landing');
+  }, [])
+  
+  return (
+    // do something...
+  )
+}
+```
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## Implementation with `contentstack` package
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### Boilerplate code for defining Stack object
 
-### `npm test`
+This code is from the create-react-app-starter repo from contentful. You can check out the code [here](https://github.com/contentstack/contentstack-react-starter-app). This defined so that as a developer we won't have to define axios objects everytime we need to fetch something from contentstack.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```js
+import * as contentstack from "contentstack";
+import * as Utils from "@contentstack/utils";
 
-### `npm run build`
+const Stack = contentstack.Stack({
+  api_key: process.env.REACT_APP_SA_KEY,
+  delivery_token: process.env.REACT_APP_SA_TOKEN,
+  environment: process.env.REACT_APP_SA_ENV,
+});
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+const renderOption = {
+  ["span"]: (node, next) => {
+    return next(node.children);
+  },
+};
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+// eslint-disable-next-line import/no-anonymous-default-export
+export default {
+  /**
+   *
+   * fetches all the entries from specific content-type
+   * @param {* content-type uid} contentTypeUid
+   * @param {* reference field name} referenceFieldPath
+   * @param {* Json RTE path} jsonRtePath
+   *
+   */
+  getEntry({ contentTypeUid, referenceFieldPath, jsonRtePath }) {
+    return new Promise((resolve, reject) => {
+      const query = Stack.ContentType(contentTypeUid).Query();
+      if (referenceFieldPath) query.includeReference(referenceFieldPath);
+      query
+        .includeOwner()
+        .toJSON()
+        .find()
+        .then(
+          (result) => {
+            jsonRtePath &&
+              Utils.jsonToHTML({
+                entry: result,
+                paths: jsonRtePath,
+                renderOption,
+              });
+            resolve(result);
+          },
+          (error) => {
+            reject(error);
+          }
+        );
+    });
+  },
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+  /**
+   *fetches specific entry from a content-type
+   *
+   * @param {* content-type uid} contentTypeUid
+   * @param {* url for entry to be fetched} entryUrl
+   * @param {* reference field name} referenceFieldPath
+   * @param {* Json RTE path} jsonRtePath
+   * @returns
+   */
+  getEntryByUrl({ contentTypeUid, entryUrl, referenceFieldPath, jsonRtePath }) {
+    return new Promise((resolve, reject) => {
+      const blogQuery = Stack.ContentType(contentTypeUid).Query();
+      if (referenceFieldPath) blogQuery.includeReference(referenceFieldPath);
+      blogQuery.includeOwner().toJSON();
+      const data = blogQuery.where("url", `${entryUrl}`).find();
+      data.then(
+        (result) => {
+          jsonRtePath &&
+            Utils.jsonToHTML({
+              entry: result,
+              paths: jsonRtePath,
+              renderOption,
+            });
+          resolve(result[0]);
+        },
+        (error) => {
+          reject(error);
+        }
+      );
+    });
+  },
+};
+```
 
-### `npm run eject`
+### Define helpers for fetching contentstack contents
+```js
+import Stack from "../sdk/entry.d";
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+export const getHomePageLandingRes = async () => {
+  const response = await Stack.getEntry({
+    contentTypeUid: "home_page_landing",
+  });
+  return response[0][0];
+};
+```
