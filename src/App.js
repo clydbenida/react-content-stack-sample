@@ -1,7 +1,23 @@
 import logo from './logo.svg';
 import './App.css';
+import { useEffect } from "react";
+import { getAboutPage, getHomePageLandingRes } from "./helpers";
 
 function App() {
+  useEffect(() => {
+    const getLandPage = async () => {
+      const response = await getHomePageLandingRes();
+      console.log(response);
+    };
+
+    const getAbout = async () => {
+      const response = await getAboutPage();
+      console.log("About", response);
+    };
+
+    getLandPage();
+    getAbout();
+  }, []);
   return (
     <div className="App">
       <header className="App-header">
